@@ -4,8 +4,6 @@ import org.apache.spark.mllib.tree.GradientBoostedTrees
 import org.apache.spark.mllib.tree.configuration.BoostingStrategy
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.tree.model.GradientBoostedTreesModel
-import org.apache.spark.mllib.util.MLUtils
 
 
 class myDemo {
@@ -22,11 +20,12 @@ class myDemo {
     val label_day = "2014-12-17 0"
     //("1/0",features)
     val training_data: RDD[(String, Array[String])] = add_label_to_feature_vector(initialData, all_features, label_day)
-
+    //sample
     val training_data_p = training_data.filter(_._1 == "1").sample(false, 0.98)
     val training_data_n = training_data.filter(_._1 == "0").sample(false, 0.005)
-
     val training_sample: RDD[(String, Array[String])] = training_data_p.union(training_data_n)
+
+    //change to labeledPoint
     val true_training_data: RDD[LabeledPoint] = training_sample.map(line => {
       LabeledPoint(line._1.toDouble, Vectors.dense(line._2.map(_.toDouble)))
     }).cache()
@@ -40,28 +39,13 @@ class myDemo {
     val testErr = labelAndPreds.filter(r => r._1 != r._2).count.toDouble / labelAndPreds.count()
     println("Test Error = " + testErr)
 
+    val real_feature_vector = create_feature_vector(initialData, "2014-11-18 0", "2014-12-18 24")
 
-  }
+    val preds = real_feature_vector.filter(line => {
+      model.predict(Vectors.dense(line._2.map(_.toDouble))) == 1
+    }).map(line => line._1).distinct().collect()
 
 
-  def training_model(true_training_data: RDD[LabeledPoint]) = {
-    val boostingStrategy = BoostingStrategy.defaultParams("Classification")
-
-    boostingStrategy.setNumIterations(7)
-    boostingStrategy.getTreeStrategy().setNumClasses(2)
-    boostingStrategy.getTreeStrategy().setMaxDepth(5)
-    boostingStrategy.getTreeStrategy().setCategoricalFeaturesInfo(Map[Int, Int]())
-    GradientBoostedTrees.train(true_training_data, boostingStrategy)
-  }
-
-  def add_label_to_feature_vector(initialData: RDD[Array[String]], all_features: RDD[(String, Array[String])], label_day: String): RDD[(String, Array[String])] = {
-    val label_set: Set[String] = get_label_set(initialData, label_day)
-
-    val training_data: RDD[(String, Array[String])] = all_features.map(line => {
-      val label = if (label_set.contains(line._1)) "1" else "0"
-      (label, line._2)
-    })
-    training_data
   }
 
   def create_feature_vector(initialData: RDD[Array[String]], start_date: String, end_date: String): RDD[(String, Array[String])] = {
@@ -98,13 +82,35 @@ class myDemo {
     all_features
   }
 
-  def get_pre_train_data(initialData: RDD[Array[String]], start: String, end: String) = {
-    initialData.filter(p => stringTime.between(p(5), start, end))
+  def add_label_to_feature_vector(initialData: RDD[Array[String]], all_features: RDD[(String, Array[String])], label_day: String): RDD[(String, Array[String])] = {
+    val label_set: Set[String] = get_label_set(initialData, label_day)
 
+    val training_data: RDD[(String, Array[String])] = all_features.map(line => {
+      val label = if (label_set.contains(line._1)) "1" else "0"
+      (label, line._2)
+    })
+    training_data
   }
+
+  def training_model(true_training_data: RDD[LabeledPoint]) = {
+    val boostingStrategy = BoostingStrategy.defaultParams("Classification")
+
+    boostingStrategy.setNumIterations(7)
+    boostingStrategy.getTreeStrategy().setNumClasses(2)
+    boostingStrategy.getTreeStrategy().setMaxDepth(5)
+    boostingStrategy.getTreeStrategy().setCategoricalFeaturesInfo(Map[Int, Int]())
+    GradientBoostedTrees.train(true_training_data, boostingStrategy)
+  }
+
 
   def get_label_set(initialData: RDD[Array[String]], date: String) = {
     initialData.filter(p => stringTime.in_same_day(p(5), date)).filter(p => p(2) == "4").map(p => p(0) + "," + p(1)).collect().toSet
+  }
+
+
+  def get_pre_train_data(initialData: RDD[Array[String]], start: String, end: String) = {
+    initialData.filter(p => stringTime.between(p(5), start, end))
+
   }
 
   def construct_user_features(pre_train_data: RDD[Array[String]], start_date: String, end_date: String): RDD[(String, Array[String])] = {
@@ -122,17 +128,6 @@ class myDemo {
     ).groupByKey().cache()
     val item_features = cal_count_time_features(item_data, start_date, end_date, 1, 4)
     item_features
-
-  }
-
-  def construct_user_to_item_features(pre_train_data: RDD[Array[String]], start_date: String, end_date: String): RDD[(String, Array[String])] = {
-    val user_to_item_data = pre_train_data.map(p => {
-      val key = p(0) + "," + p(1)
-      val value = p.drop(2)
-      (key, value)
-    }).groupByKey().cache()
-    val user_to_item_features = cal_count_time_features(user_to_item_data, start_date, end_date, 0, 3)
-    user_to_item_features
 
   }
 
@@ -247,16 +242,22 @@ class myDemo {
     )
     features
   }
+
+  def construct_user_to_item_features(pre_train_data: RDD[Array[String]], start_date: String, end_date: String): RDD[(String, Array[String])] = {
+    val user_to_item_data = pre_train_data.map(p => {
+      val key = p(0) + "," + p(1)
+      val value = p.drop(2)
+      (key, value)
+    }).groupByKey().cache()
+    val user_to_item_features = cal_count_time_features(user_to_item_data, start_date, end_date, 0, 3)
+    user_to_item_features
+
+  }
 }
 
 object stringTime {
   def between(time: String, start: String, end: String): Boolean = {
     distance(time, start) >= 0 && distance(end, time) >= 0
-  }
-
-  def in_same_day(a: String, b: String): Boolean = {
-    (a.split(" ")(0) == b.split(" ")(0))
-
   }
 
   def distance(a: String, b: String): Int = {
@@ -270,6 +271,11 @@ object stringTime {
     val a2 = ((a1(0).split("-")(1).toInt - 11) * 30 + a1(0).split("-")(2).toInt) * 24 + a1(1).toInt
     val b2 = ((b1(0).split("-")(1).toInt - 11) * 30 + b1(0).split("-")(2).toInt) * 24 + b1(1).toInt
     a2 - b2
+
+  }
+
+  def in_same_day(a: String, b: String): Boolean = {
+    (a.split(" ")(0) == b.split(" ")(0))
 
   }
 
