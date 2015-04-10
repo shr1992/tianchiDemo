@@ -11,9 +11,12 @@ class myDemo {
     val end_date: String = "2014-12-16 24"
     val pre_train_data: RDD[Array[String]] = get_pre_train_data(initialData, start_date, end_date)
     val user_features = construct_user_features(pre_train_data, start_date, end_date)
-    user_features.take(10)
-    val item_features = construct_item_features(initialData, start_date, end_date)
-    item_features.take(10)
+    user_features.take(5)
+    val item_features = construct_item_features(pre_train_data, start_date, end_date)
+    item_features.take(5)
+    val user_to_item_features = construct_user_to_item_features(pre_train_data, start_date, end_date)
+    user_to_item_features.take(5)
+
 
   }
 
@@ -22,28 +25,39 @@ class myDemo {
 
   }
 
-  def construct_user_features(pre_train_data: RDD[Array[String]], start_date: String, end_date: String): RDD[Array[String]] = {
+  def construct_user_features(pre_train_data: RDD[Array[String]], start_date: String, end_date: String): RDD[(String, Array[String])] = {
     val user_data = pre_train_data.map(p => (p(0), p.drop(1))).groupByKey().cache()
     val user_features = cal_count_time_features(user_data, start_date, end_date, 1, 4)
     user_features
   }
 
-  def construct_item_features(pre_train_data: RDD[Array[String]], start_date: String, end_date: String): RDD[Array[String]] = {
+  def construct_item_features(pre_train_data: RDD[Array[String]], start_date: String, end_date: String): RDD[(String, Array[String])] = {
     val item_data = pre_train_data.map(p => {
       val tmp = p.toBuffer
       tmp.remove(1)
       (p(1), tmp.toArray)
     }
     ).groupByKey().cache()
-    val item_features: RDD[Array[String]] = cal_count_time_features(item_data, start_date, end_date, 1, 4)
+    val item_features = cal_count_time_features(item_data, start_date, end_date, 1, 4)
     item_features
+
+  }
+
+  def construct_user_to_item_features(pre_train_data: RDD[Array[String]], start_date: String, end_date: String): RDD[(String, Array[String])] = {
+    val user_to_item_data = pre_train_data.map(p => {
+      val key = p(0) + "," + p(1)
+      val value = p.drop(2)
+      (key, value)
+    }).groupByKey().cache()
+    val user_to_item_features = cal_count_time_features(user_to_item_data, start_date, end_date, 0, 3)
+    user_to_item_features
 
   }
 
   //计算输入数据的点击、收藏、购物车、购买次数（分时段）、第一次点击、购买，最后一次点击、购买的时间以及
   //购买、点击比
   //输入：type_col_num：用户操作类型所在列的index　　time_col_num　购买时间所在列的index (0-based)
-  def cal_count_time_features(data: RDD[(String, Iterable[Array[String]])], start_date: String, end_date: String, type_col_num: Int, time_col_num: Int): RDD[Array[String]] = {
+  def cal_count_time_features(data: RDD[(String, Iterable[Array[String]])], start_date: String, end_date: String, type_col_num: Int, time_col_num: Int): RDD[(String, Array[String])] = {
     val features = data.map(line => {
       var click = 0
       var click_6h = 0
@@ -140,7 +154,11 @@ class myDemo {
           last_buy = item(time_col_num)
 
       }
-      "%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%f".format(line._1, click, click_6h, click_12h, click_24h, click_3d, click_7d, favorite, favorite_6h, favorite_12h, favorite_24h, favorite_3d, favorite_7d, cart, cart_6h, cart_12h, cart_24h, cart_3d, cart_7d, buy, buy_6h, buy_12h, buy_24h, buy_3d, buy_7d, first_click, last_click, first_buy, last_buy, (buy / click).toDouble).split(",")
+      val value = "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f"
+        .format(click, click_6h, click_12h, click_24h, click_3d, click_7d, favorite, favorite_6h, favorite_12h, favorite_24h, favorite_3d, favorite_7d, cart, cart_6h, cart_12h, cart_24h, cart_3d, cart_7d, buy, buy_6h, buy_12h, buy_24h, buy_3d, buy_7d, stringTime.distance(end_date,first_click), stringTime.distance(end_date,last_click), stringTime.distance(end_date,first_buy),stringTime.distance(end_date,last_buy) , buy.toDouble / click).split(",")
+      val key = line._1
+      (key, value)
+
     }
     )
     features
