@@ -1,4 +1,6 @@
 import org.apache.spark.SparkContext
+
+
 import org.apache.spark.rdd.RDD
 
 
@@ -37,15 +39,56 @@ class myDemo {
       val value = (tmp ++ p._2._2).toArray
       (user_id + "," + p._1, value)
     }) //("user_id,item_id" , all features)
-
     user_and_utoi_and_item_features.take(5)
 
+    val all_features: RDD[(String, Array[String])] = user_and_utoi_and_item_features
+
+
+
+    val label_day = "2014-12-17 0"
+
+    val label_set: Set[String] = get_label_set(initialData, label_day)
+
+    val training_data: RDD[(String, Array[String])] = all_features.map(line => {
+      val label = if (label_set.contains(line._1)) "1" else "0"
+      (label, line._2)
+    })
+
+    val training_data_p = training_data.filter(_._1 == "1").sample(false, 0.98)
+    val training_data_n = training_data.filter(_._1 == "0").sample(false, 0.005)
+
+    val training_sample: RDD[(String, Array[String])] = training_data_p.union(training_data_n)
+
+    import org.apache.spark.mllib.tree.GradientBoostedTrees
+    import org.apache.spark.mllib.tree.configuration.BoostingStrategy
+    import org.apache.spark.mllib.regression.LabeledPoint
+    import org.apache.spark.mllib.linalg.Vectors
+    import org.apache.spark.mllib.tree.model.GradientBoostedTreesModel
+    import org.apache.spark.mllib.util.MLUtils
+
+    val boostingStrategy = BoostingStrategy.defaultParams("Classification")
+
+    boostingStrategy.setNumIterations(7)
+    boostingStrategy.getTreeStrategy().setNumClasses(2)
+    boostingStrategy.getTreeStrategy().setMaxDepth(5)
+    boostingStrategy.getTreeStrategy().setCategoricalFeaturesInfo(Map[Int, Int]())
+
+    val true_training_data = training_sample.map(line => {
+      LabeledPoint(line._1.toDouble, Vectors.dense(line._2.map(_.toDouble)))
+    }).cache()
+
+    val model = GradientBoostedTrees.train(true_training_data, boostingStrategy)
 
   }
+
 
   def get_pre_train_data(initialData: RDD[Array[String]], start: String, end: String) = {
     initialData.filter(p => stringTime.between(p(5), start, end))
 
+  }
+
+  def get_label_set(initialData: RDD[Array[String]], date: String) = {
+    initialData.filter(p => stringTime.in_same_day(p(5), date)).filter(p => p(2) == "4").map(p => p(0) + "," + p(1)).collect().toSet
   }
 
   def construct_user_features(pre_train_data: RDD[Array[String]], start_date: String, end_date: String): RDD[(String, Array[String])] = {
@@ -193,6 +236,11 @@ class myDemo {
 object stringTime {
   def between(time: String, start: String, end: String): Boolean = {
     distance(time, start) >= 0 && distance(end, time) >= 0
+  }
+
+  def in_same_day(a: String, b: String): Boolean = {
+    (a.split(" ")(0) == b.split(" ")(0))
+
   }
 
   def distance(a: String, b: String): Int = {
