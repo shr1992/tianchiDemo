@@ -1,10 +1,11 @@
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
+
 class myDemo {
   def main(args: Array[String]) {
     val sc = new SparkContext()
-    val file: String = "C:/Users/lq/Desktop/tianchi/tianchi_mobile_recommend_train_user.csv"
+    val file: String = "C:/Users/lq/Desktop/tianchi/user_demo.csv"
     val initialData: RDD[Array[String]] = sc.textFile(file).filter(!_.contains("user_id"))
       .map(_.split(",")).cache()
     val start_date: String = "2014-11-18 0"
@@ -14,8 +15,30 @@ class myDemo {
     user_features.take(5)
     val item_features = construct_item_features(pre_train_data, start_date, end_date)
     item_features.take(5)
-    val user_to_item_features = construct_user_to_item_features(pre_train_data, start_date, end_date)
+    val user_to_item_features: RDD[(String, Array[String])] = construct_user_to_item_features(pre_train_data, start_date, end_date)
     user_to_item_features.take(5)
+
+    //join user_features
+    val user_and_utoi_features = user_to_item_features.map(p => {
+      val tmp = p._1.split(",")
+      (tmp(0), tmp(1) +: p._2) //(user_id, Array(item_id,...))
+    }).join(user_features) //(user_id, (Array(item_id,...),user_features))
+
+    //join item_features
+    val user_and_utoi_and_item_features: RDD[(String, Array[String])] = user_and_utoi_features.map(p => {
+      val tmp = p._2._1.toBuffer
+      val item_id = tmp.remove(0)
+      val value = (p._1 +: tmp) ++ p._2._2
+      (item_id, value.toArray) //(item_id,Array(user_id,...)
+    }).join(item_features) //(item_id,(Array(user_id,...),item_features))
+      .map(p => {
+      val tmp = p._2._1.toBuffer
+      val user_id = tmp.remove(0)
+      val value = (tmp ++ p._2._2).toArray
+      (user_id + "," + p._1, value)
+    }) //("user_id,item_id" , all features)
+
+    user_and_utoi_and_item_features.take(5)
 
 
   }
@@ -157,7 +180,7 @@ class myDemo {
 
       }
       val value = "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f"
-        .format(click, click_6h, click_12h, click_24h, click_3d, click_7d, favorite, favorite_6h, favorite_12h, favorite_24h, favorite_3d, favorite_7d, cart, cart_6h, cart_12h, cart_24h, cart_3d, cart_7d, buy, buy_6h, buy_12h, buy_24h, buy_3d, buy_7d, stringTime.distance(end_date,first_click), stringTime.distance(end_date,last_click), stringTime.distance(end_date,first_buy),stringTime.distance(end_date,last_buy) , buy.toDouble / click).split(",")
+        .format(click, click_6h, click_12h, click_24h, click_3d, click_7d, favorite, favorite_6h, favorite_12h, favorite_24h, favorite_3d, favorite_7d, cart, cart_6h, cart_12h, cart_24h, cart_3d, cart_7d, buy, buy_6h, buy_12h, buy_24h, buy_3d, buy_7d, stringTime.distance(end_date, first_click), stringTime.distance(end_date, last_click), stringTime.distance(end_date, first_buy), stringTime.distance(end_date, last_buy), buy.toDouble / click).split(",")
       val key = line._1
       (key, value)
 
