@@ -1,4 +1,3 @@
-
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
@@ -12,7 +11,9 @@ class myDemo {
     val end_date: String = "2014-12-16 24"
     val pre_train_data: RDD[Array[String]] = get_pre_train_data(initialData, start_date, end_date)
     val user_features = construct_user_features(pre_train_data, start_date, end_date)
-    user_features.take(10).foreach(println)
+    user_features.take(10)
+    val item_features = construct_item_features(initialData, start_date, end_date)
+    item_features.take(10)
 
   }
 
@@ -22,7 +23,7 @@ class myDemo {
   }
 
   def construct_user_features(pre_train_data: RDD[Array[String]], start_date: String, end_date: String): RDD[Array[String]] = {
-    val user_data = pre_train_data.map(p => (p(0), p.drop(0))).groupByKey().cache()
+    val user_data = pre_train_data.map(p => (p(0), p.drop(1))).groupByKey().cache()
     val user_features = cal_count_time_features(user_data, start_date, end_date, 1, 4)
     user_features
   }
@@ -39,9 +40,11 @@ class myDemo {
 
   }
 
+  //计算输入数据的点击、收藏、购物车、购买次数（分时段）、第一次点击、购买，最后一次点击、购买的时间以及
+  //购买、点击比
+  //输入：type_col_num：用户操作类型所在列的index　　time_col_num　购买时间所在列的index (0-based)
   def cal_count_time_features(data: RDD[(String, Iterable[Array[String]])], start_date: String, end_date: String, type_col_num: Int, time_col_num: Int): RDD[Array[String]] = {
     val features = data.map(line => {
-
       var click = 0
       var click_6h = 0
       var click_12h = 0
@@ -137,7 +140,7 @@ class myDemo {
           last_buy = item(time_col_num)
 
       }
-      "%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%d".format(line._1, click, click_6h, click_12h, click_24h, click_3d, click_7d, favorite, favorite_6h, favorite_12h, favorite_24h, favorite_3d, favorite_7d, cart, cart_6h, cart_12h, cart_24h, cart_3d, cart_7d, buy, buy_6h, buy_12h, buy_24h, buy_3d, buy_7d, first_click, last_click, first_buy, last_buy, buy / click).split(",")
+      "%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%s,%f".format(line._1, click, click_6h, click_12h, click_24h, click_3d, click_7d, favorite, favorite_6h, favorite_12h, favorite_24h, favorite_3d, favorite_7d, cart, cart_6h, cart_12h, cart_24h, cart_3d, cart_7d, buy, buy_6h, buy_12h, buy_24h, buy_3d, buy_7d, first_click, last_click, first_buy, last_buy, (buy / click).toDouble).split(",")
     }
     )
     features
@@ -152,6 +155,10 @@ object stringTime {
   def distance(a: String, b: String): Int = {
     val a1 = a.split(" ")
     val b1 = b.split(" ")
+    if ((a1.length != 2) || (b1.length != 2)) {
+      println("%s and %s 格式有问题".format(a, b))
+      return 0
+    }
 
     val a2 = ((a1(0).split("-")(1).toInt - 11) * 30 + a1(0).split("-")(2).toInt) * 24 + a1(1).toInt
     val b2 = ((b1(0).split("-")(1).toInt - 11) * 30 + b1(0).split("-")(2).toInt) * 24 + b1(1).toInt
