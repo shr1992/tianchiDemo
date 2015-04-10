@@ -103,6 +103,10 @@ class myDemo {
             click_3d += 1
           if (time_dis <= 24 * 7)
             click_7d += 1
+          if (stringTime.distance(item(time_col_num), first_click) <= 0)
+            first_click = item(time_col_num)
+          if (stringTime.distance(item(time_col_num), last_click) >= 0)
+            last_click = item(time_col_num)
 
         }
         if (item(type_col_num) == "2") {
@@ -143,15 +147,13 @@ class myDemo {
             buy_3d += 1
           if (time_dis <= 24 * 7)
             buy_7d += 1
+          if (stringTime.distance(item(time_col_num), first_buy) <= 0)
+            first_buy = item(time_col_num)
+
+          if (stringTime.distance(item(time_col_num), last_buy) >= 0)
+            last_buy = item(time_col_num)
+
         }
-        if (stringTime.distance(item(time_col_num), first_click) <= 0)
-          first_click = item(time_col_num)
-        if (stringTime.distance(item(time_col_num), first_buy) <= 0)
-          first_buy = item(time_col_num)
-        if (stringTime.distance(item(time_col_num), last_click) >= 0)
-          last_click = item(time_col_num)
-        if (stringTime.distance(item(time_col_num), last_buy) >= 0)
-          last_buy = item(time_col_num)
 
       }
       val value = "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f"
