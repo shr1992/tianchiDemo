@@ -55,7 +55,7 @@ class myDemo {
     val model = training_model(true_training_data)
 
     val labelAndPreds = training_data.map(line => {
-      (model.setThreshold(0.8).predict(Vectors.dense(line._2.map(_.toDouble))), line._1.toDouble)
+      (model.setThreshold(0.5).predict(Vectors.dense(line._2.map(_.toDouble))), line._1.toDouble)
     })
 
     val testErr = labelAndPreds.filter(r => r._1 != r._2).count().toDouble / labelAndPreds.count()
