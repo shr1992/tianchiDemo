@@ -1,7 +1,8 @@
 import org.apache.spark.SparkContext
-import org.apache.spark.mllib.classification.LogisticRegressionWithLBFGS
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.tree.GradientBoostedTrees
+import org.apache.spark.mllib.tree.configuration.BoostingStrategy
 import org.apache.spark.rdd.RDD
 
 object stringTime {
@@ -30,6 +31,7 @@ class myDemo {
   def main(args: Array[String]) {
     val sc = new SparkContext()
     // val file: String = "C:/Users/lq/Desktop/tianchi/tianchi_mobile_recommend_train_user.csv"
+    //val file = "C:/Users/LQ/Desktop/tianchi/user_demo.csv"
     val file: String = "/data/tianchi/tianchi_mobile_recommend_train_user.csv"
 
     val initialData: RDD[Array[String]] = sc.textFile(file).filter(!_.contains("user_id")).map(_.split(","))
@@ -55,7 +57,7 @@ class myDemo {
     val model = training_model(true_training_data)
 
     val labelAndPreds = training_data.map(line => {
-      (model.setThreshold(0.5).predict(Vectors.dense(line._2.map(_.toDouble))), line._1.toDouble)
+      (model.predict(Vectors.dense(line._2.map(_.toDouble))), line._1.toDouble)
     })
 
     val testErr = labelAndPreds.filter(r => r._1 != r._2).count().toDouble / labelAndPreds.count()
@@ -184,8 +186,11 @@ class myDemo {
         }
 
       }
+      val buy_divide_click = (buy + 1).toDouble / (click + 1)
+
+      // if user did not buy or click first/last buy/click   ???!!!
       val value = "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f"
-        .format(click, click_6h, click_12h, click_24h, click_3d, click_7d, favorite, favorite_6h, favorite_12h, favorite_24h, favorite_3d, favorite_7d, cart, cart_6h, cart_12h, cart_24h, cart_3d, cart_7d, buy, buy_6h, buy_12h, buy_24h, buy_3d, buy_7d, stringTime.distance(end_date, first_click), stringTime.distance(end_date, last_click), stringTime.distance(end_date, first_buy), stringTime.distance(end_date, last_buy), buy.toDouble / click).split(",")
+        .format(click, click_6h, click_12h, click_24h, click_3d, click_7d, favorite, favorite_6h, favorite_12h, favorite_24h, favorite_3d, favorite_7d, cart, cart_6h, cart_12h, cart_24h, cart_3d, cart_7d, buy, buy_6h, buy_12h, buy_24h, buy_3d, buy_7d, stringTime.distance(end_date, first_click), stringTime.distance(end_date, last_click), stringTime.distance(end_date, first_buy), stringTime.distance(end_date, last_buy), buy_divide_click).split(",")
       val key = line._1
       (key, value)
 
@@ -276,13 +281,13 @@ class myDemo {
   }
 
   def training_model(true_training_data: RDD[LabeledPoint]) = {
-    //    val boostingStrategy: BoostingStrategy = BoostingStrategy.defaultParams("Classification")
-    //    boostingStrategy.setNumIterations(3)
-    //    boostingStrategy.treeStrategy.setNumClasses(2)
-    //    boostingStrategy.treeStrategy.setMaxDepth(5)
-    //   // boostingStrategy.treeStrategy.setCategoricalFeaturesInfo(Map[Int, Int]())
-    //    GradientBoostedTrees.train(true_training_data, boostingStrategy)
-    new LogisticRegressionWithLBFGS().setNumClasses(2).run(true_training_data)
+    val boostingStrategy: BoostingStrategy = BoostingStrategy.defaultParams("Classification")
+    boostingStrategy.setNumIterations(20)
+    boostingStrategy.treeStrategy.setNumClasses(2)
+    boostingStrategy.treeStrategy.setMaxDepth(6)
+    // boostingStrategy.treeStrategy.setCategoricalFeaturesInfo(Map[Int, Int]())
+    GradientBoostedTrees.train(true_training_data, boostingStrategy)
+    // new LogisticRegressionWithLBFGS().setNumClasses(2).run(true_training_data)
   }
 }
 
