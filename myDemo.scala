@@ -1,9 +1,8 @@
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.apache.spark.mllib.tree.GradientBoostedTrees
-import org.apache.spark.mllib.tree.configuration.BoostingStrategy
-import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.classification.LogisticRegressionWithLBFGS
 import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.rdd.RDD
 
 object stringTime {
   def between(time: String, start: String, end: String): Boolean = {
@@ -56,13 +55,27 @@ class myDemo {
     val model = training_model(true_training_data)
 
     val labelAndPreds = true_training_data.map(line => {
-      (model.predict(line.features), line.label)
+      (model.setThreshold(0.8).predict(line.features), line.label)
     })
 
     val testErr = labelAndPreds.filter(r => r._1 != r._2).count().toDouble / labelAndPreds.count()
     println("Test Error = " + testErr)
 
-    val real_feature_vector = create_feature_vector(initialData, "2014-11-18 0", "2014-12-18 24")
+
+    val test_feature_vector = create_feature_vector(initialData, "2014-11-19 0", "2014-12-17 24")
+
+    val test_preds = test_feature_vector.map(line => {
+      (line._1, model.predict(Vectors.dense(line._2.map(_.toDouble))))
+    }).filter(_._2 == 1)
+
+    val test_label_set = get_label_set(initialData, "2014-12-18 0")
+
+    test_preds.filter(line => test_label_set.contains(line._1)).count().toDouble / test_label_set.size
+
+
+
+
+    val real_feature_vector = create_feature_vector(initialData, "2014-11-20 0", "2014-12-18 24")
 
     val preds = real_feature_vector.filter(line => {
       model.predict(Vectors.dense(line._2.map(_.toDouble))) == 1
@@ -246,7 +259,7 @@ class myDemo {
       val value = (tmp ++ p._2._2).toArray
       (user_id + "," + p._1, value)
     }) //("user_id,item_id" , all features)
-    user_and_utoi_and_item_features.take(5)
+    //user_and_utoi_and_item_features.take(5)
 
     val all_features: RDD[(String, Array[String])] = user_and_utoi_and_item_features
     all_features
@@ -263,15 +276,13 @@ class myDemo {
   }
 
   def training_model(true_training_data: RDD[LabeledPoint]) = {
-
-    val boostingStrategy = BoostingStrategy.defaultParams("Classification")
-    boostingStrategy.setNumIterations(3)
-    boostingStrategy.treeStrategy.setNumClasses(2)
-    boostingStrategy.treeStrategy.setMaxDepth(5)
-    boostingStrategy.treeStrategy.setCategoricalFeaturesInfo(Map[Int, Int]())
-    GradientBoostedTrees.train(true_training_data, boostingStrategy)
+    //    val boostingStrategy: BoostingStrategy = BoostingStrategy.defaultParams("Classification")
+    //    boostingStrategy.setNumIterations(3)
+    //    boostingStrategy.treeStrategy.setNumClasses(2)
+    //    boostingStrategy.treeStrategy.setMaxDepth(5)
+    //   // boostingStrategy.treeStrategy.setCategoricalFeaturesInfo(Map[Int, Int]())
+    //    GradientBoostedTrees.train(true_training_data, boostingStrategy)
+    new LogisticRegressionWithLBFGS().setNumClasses(2).run(true_training_data)
   }
-
-
 }
 
