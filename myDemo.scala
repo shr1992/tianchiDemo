@@ -263,12 +263,12 @@ class myDemo {
   }
 
   def training_model(true_training_data: RDD[LabeledPoint]) = {
-    val boostingStrategy = BoostingStrategy.defaultParams("Classification")
 
-    boostingStrategy.setNumIterations(7)
-    boostingStrategy.getTreeStrategy.setNumClasses(2)
-    boostingStrategy.getTreeStrategy.setMaxDepth(5)
-   // boostingStrategy.getTreeStrategy.setCategoricalFeaturesInfo(Map[Int, Int]())
+    val boostingStrategy = BoostingStrategy.defaultParams("Classification")
+    boostingStrategy.setNumIterations(3)
+    boostingStrategy.treeStrategy.setNumClasses(2)
+    boostingStrategy.treeStrategy.setMaxDepth(5)
+    boostingStrategy.treeStrategy.setCategoricalFeaturesInfo(Map[Int, Int]())
     GradientBoostedTrees.train(true_training_data, boostingStrategy)
   }
 
