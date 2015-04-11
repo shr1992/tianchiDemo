@@ -44,8 +44,8 @@ class myDemo {
     //("1/0",features)
     val training_data: RDD[(String, Array[String])] = add_label_to_feature_vector(initialData, all_features, label_day)
     //sample
-    val training_data_p = training_data.filter(_._1 == "1").sample(withReplacement = false, 0.98)
-    val training_data_n = training_data.filter(_._1 == "0").sample(withReplacement = false, 0.005)
+    val training_data_p = training_data.filter(_._1 == "1").sample(false, 0.98)
+    val training_data_n = training_data.filter(_._1 == "0").sample(false, 0.005)
     val training_sample: RDD[(String, Array[String])] = training_data_p.union(training_data_n)
 
     //change to labeledPoint
@@ -268,7 +268,7 @@ class myDemo {
     boostingStrategy.setNumIterations(7)
     boostingStrategy.getTreeStrategy.setNumClasses(2)
     boostingStrategy.getTreeStrategy.setMaxDepth(5)
-    boostingStrategy.getTreeStrategy.setCategoricalFeaturesInfo(Map[Int, Int]())
+   // boostingStrategy.getTreeStrategy.setCategoricalFeaturesInfo(Map[Int, Int]())
     GradientBoostedTrees.train(true_training_data, boostingStrategy)
   }
 
