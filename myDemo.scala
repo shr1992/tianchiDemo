@@ -45,7 +45,7 @@ class myDemo {
   val real_end_date: String = "2014-12-18 24"
 
   val negative_sample_fraction: Double = 0.01
-  val result_number = 4500
+  val result_number = 500
 
   val num_iteration: Int = 50
   val tree_max_depth: Int = 7
@@ -74,11 +74,13 @@ class myDemo {
       LabeledPoint(line._1.toDouble, Vectors.dense(line._2.map(_.toDouble)))
     }).cache()
     val model = training_model(true_training_data)
+    //model.save(sc, "model/model1")
+
 
 
     val train_pred_value = use_model_to_predict(model, reduced_train_feature_vector)
     val train_pred_positive = get_pred_positive(train_pred_value, result_number)
-    val train_label_set = get_label_set(initial_user_data, train_label_date)
+    val train_label_set = get_label_set(reduced_user_data, train_label_date)
     val train_evaluation = calculate_precision_recall_f1(train_pred_positive, train_label_set)
     println("model at train_set: precision = %f , recall = %f , f1 = %f ".format(train_evaluation._1, train_evaluation._2, train_evaluation._3))
 
@@ -86,7 +88,7 @@ class myDemo {
     val test_feature_vector: RDD[(String, Array[String])] = create_feature_vector(reduced_user_data, test_start_date, test_end_date)
     val test_pred_value = use_model_to_predict(model, test_feature_vector)
     val test_pred_positive = get_pred_positive(test_pred_value, result_number)
-    val test_label_set = get_label_set(initial_user_data, test_label_date)
+    val test_label_set = get_label_set(reduced_user_data, test_label_date)
     val test_evaluation = calculate_precision_recall_f1(test_pred_positive, test_label_set)
     println("model at test_set: precision = %f , recall = %f , f1 = %f ".format(test_evaluation._1, test_evaluation._2, test_evaluation._3))
 
