@@ -44,10 +44,10 @@ class myDemo {
   val real_start_date: String = "2014-11-20 0"
   val real_end_date: String = "2014-12-18 24"
 
-  val negative_sample_fraction: Double = 0.005
+  val negative_sample_fraction: Double = 0.01
   val result_number = 4500
 
-  val num_iteration: Int = 30
+  val num_iteration: Int = 50
   val tree_max_depth: Int = 7
 
   def main(args: Array[String]) {
