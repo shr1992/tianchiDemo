@@ -30,6 +30,8 @@ object stringTime {
 
 class myDemo {
 
+  val user_file: String = "/data/tianchi/tianchi_mobile_recommend_train_user.csv"
+
   val train_start_date: String = "2014-11-18 0"
   val train_end_date: String = "2014-12-16 24"
   val train_label_date = "2014-12-17 0"
@@ -49,11 +51,8 @@ class myDemo {
 
   def main(args: Array[String]) {
     val sc = new SparkContext()
-    // val file: String = "C:/Users/lq/Desktop/tianchi/tianchi_mobile_recommend_train_user.csv"
-    //val file = "C:/Users/LQ/Desktop/tianchi/user_demo.csv"
-    val file: String = "/data/tianchi/tianchi_mobile_recommend_train_user.csv"
 
-    val initialData: RDD[Array[String]] = sc.textFile(file).filter(!_.contains("user_id")).map(_.split(","))
+    val initialData: RDD[Array[String]] = sc.textFile(user_file).filter(!_.contains("user_id")).map(_.split(","))
 
     //("userid,itemid",features)
     val train_feature_vector: RDD[(String, Array[String])] = create_feature_vector(initialData, train_start_date, train_end_date)
