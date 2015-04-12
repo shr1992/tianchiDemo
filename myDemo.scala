@@ -31,6 +31,7 @@ object stringTime {
 class myDemo {
 
   val user_file: String = "/data/tianchi/tianchi_mobile_recommend_train_user.csv"
+  val item_file: String = "/data/tianchi/tianchi_mobile_recommend_train_item.csv"
 
   val train_start_date: String = "2014-11-18 0"
   val train_end_date: String = "2014-12-16 24"
@@ -52,40 +53,44 @@ class myDemo {
   def main(args: Array[String]) {
     val sc = new SparkContext()
 
-    val initialData: RDD[Array[String]] = sc.textFile(user_file).filter(!_.contains("user_id")).map(_.split(","))
+    val initial_user_data: RDD[Array[String]] = sc.textFile(user_file).filter(!_.contains("user_id")).map(_.split(","))
+    val item_subset = sc.textFile(item_file).filter(!_.contains("item_id")).map(_.split(",")(0)).collect().toSet
+    val reduced_user_data = initial_user_data.filter(p => item_subset.contains(p(1)))
+
 
     //("userid,itemid",features)
-    val train_feature_vector: RDD[(String, Array[String])] = create_feature_vector(initialData, train_start_date, train_end_date)
-   
+    val train_feature_vector: RDD[(String, Array[String])] = create_feature_vector(initial_user_data, train_start_date, train_end_date)
+    val reduced_train_feature_vector = create_feature_vector(reduced_user_data, train_start_date, train_end_date)
+
     //("1/0",features)
-    val training_data: RDD[(String, Array[String])] = add_label_to_feature_vector(initialData, train_feature_vector, train_label_date)
+    val training_data: RDD[(String, Array[String])] = add_label_to_feature_vector(initial_user_data, train_feature_vector, train_label_date)
     //sample
     val training_data_p = training_data.filter(_._1 == "1")
-    
     val training_data_n = training_data.filter(_._1 == "0").sample(false, negative_sample_fraction)
     val training_sample: RDD[(String, Array[String])] = training_data_p.union(training_data_n)
+
     //change to labeledPoint
     val true_training_data: RDD[LabeledPoint] = training_sample.map(line => {
       LabeledPoint(line._1.toDouble, Vectors.dense(line._2.map(_.toDouble)))
     }).cache()
     val model = training_model(true_training_data)
 
-    val train_pred_value = use_model_to_predict(model, train_feature_vector)
+
+    val train_pred_value = use_model_to_predict(model, reduced_train_feature_vector)
     val train_pred_positive = get_pred_positive(train_pred_value, result_number)
-    val train_label_set = get_label_set(initialData, train_label_date)
+    val train_label_set = get_label_set(initial_user_data, train_label_date)
     val train_evaluation = calculate_precision_recall_f1(train_pred_positive, train_label_set)
     println("model at train_set: precision = %f , recall = %f , f1 = %f ".format(train_evaluation._1, train_evaluation._2, train_evaluation._3))
 
     //("userid,itemid",features)
-    val test_feature_vector: RDD[(String, Array[String])] = create_feature_vector(initialData, test_start_date, test_end_date)
+    val test_feature_vector: RDD[(String, Array[String])] = create_feature_vector(reduced_user_data, test_start_date, test_end_date)
     val test_pred_value = use_model_to_predict(model, test_feature_vector)
     val test_pred_positive = get_pred_positive(test_pred_value, result_number)
-
-    val test_label_set = get_label_set(initialData, test_label_date)
+    val test_label_set = get_label_set(initial_user_data, test_label_date)
     val test_evaluation = calculate_precision_recall_f1(test_pred_positive, test_label_set)
     println("model at test_set: precision = %f , recall = %f , f1 = %f ".format(test_evaluation._1, test_evaluation._2, test_evaluation._3))
 
-    val real_feature_vector = create_feature_vector(initialData, real_start_date, real_end_date)
+    val real_feature_vector = create_feature_vector(reduced_user_data, real_start_date, real_end_date)
     val real_pred = get_pred_positive(use_model_to_predict(model, real_feature_vector), result_number).map(_._1)
 
     println(real_pred.length)
@@ -280,7 +285,6 @@ class myDemo {
     })
     training_data
   }
-
 
 
   def training_model(true_training_data: RDD[LabeledPoint]) = {
