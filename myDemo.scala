@@ -3,6 +3,7 @@ import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.tree.GradientBoostedTrees
 import org.apache.spark.mllib.tree.configuration.BoostingStrategy
+import org.apache.spark.mllib.tree.model.GradientBoostedTreesModel
 import org.apache.spark.rdd.RDD
 
 object stringTime {
@@ -39,51 +40,39 @@ class myDemo {
     val end_date: String = "2014-12-16 24"
 
     //("userid,itemid",features)
-    val all_features: RDD[(String, Array[String])] = create_feature_vector(initialData, start_date, end_date)
+    val train_feature_vector: RDD[(String, Array[String])] = create_feature_vector(initialData, start_date, end_date)
 
     val label_day = "2014-12-17 0"
     //("1/0",features)
-    val training_data: RDD[(String, Array[String])] = add_label_to_feature_vector(initialData, all_features, label_day)
+    val training_data: RDD[(String, Array[String])] = add_label_to_feature_vector(initialData, train_feature_vector, label_day)
     //sample
     val training_data_p = training_data.filter(_._1 == "1").sample(false, 0.98)
     val training_data_n = training_data.filter(_._1 == "0").sample(false, 0.005)
     val training_sample: RDD[(String, Array[String])] = training_data_p.union(training_data_n)
-
     //change to labeledPoint
     val true_training_data: RDD[LabeledPoint] = training_sample.map(line => {
       LabeledPoint(line._1.toDouble, Vectors.dense(line._2.map(_.toDouble)))
     }).cache()
-
     val model = training_model(true_training_data)
 
-    val labelAndPreds = training_data.map(line => {
-      (model.predict(Vectors.dense(line._2.map(_.toDouble))), line._1.toDouble)
-    })
+    val train_pred_value = use_model_to_predict(model, train_feature_vector)
+    val train_label_set = get_label_set(initialData, "2014-12-17 0")
+    val train_evaluation = calculate_precision_recall_f1(train_pred_value, train_label_set)
+    println("model at train_set: precision = %f , recall = %f , f1 = %f ", train_evaluation._1, train_evaluation._2, train_evaluation._3)
 
-    val testErr = labelAndPreds.filter(r => r._1 != r._2).count().toDouble / labelAndPreds.count()
-    println("Test Error = " + testErr)
-
-
-    val test_feature_vector = create_feature_vector(initialData, "2014-11-19 0", "2014-12-17 24")
-
-    val test_preds = test_feature_vector.map(line => {
-      (line._1, model.predict(Vectors.dense(line._2.map(_.toDouble))))
-    }).filter(_._2 == 1)
-
+    //("userid,itemid",features)
+    val test_feature_vector: RDD[(String, Array[String])] = create_feature_vector(initialData, "2014-11-19 0", "2014-12-17 24")
+    val test_pred_value = use_model_to_predict(model, test_feature_vector)
     val test_label_set = get_label_set(initialData, "2014-12-18 0")
-
-    test_preds.filter(line => test_label_set.contains(line._1)).count().toDouble / test_label_set.size
-
+    val test_evaluation = calculate_precision_recall_f1(test_pred_value, test_label_set)
+    println("model at test_set: precision = %f , recall = %f , f1 = %f ", test_evaluation._1, test_evaluation._2, test_evaluation._3)
 
 
 
     val real_feature_vector = create_feature_vector(initialData, "2014-11-20 0", "2014-12-18 24")
+    val real_pred: Array[String] = use_model_to_predict(model, real_feature_vector).filter(_._2 == 1).map(_._1).distinct().collect()
 
-    val preds = real_feature_vector.filter(line => {
-      model.predict(Vectors.dense(line._2.map(_.toDouble))) == 1
-    }).map(line => line._1).distinct().collect()
-
-    preds.foreach(println)
+    println(real_pred.length)
 
 
   }
@@ -147,9 +136,9 @@ class myDemo {
             favorite_12h += 1
           if (time_dis <= 24)
             favorite_24h += 1
-          if (time_dis <= 24 * 3)
+          if (time_dis <= 72)
             favorite_3d += 1
-          if (time_dis <= 24 * 7)
+          if (time_dis <= 168)
             favorite_7d += 1
         }
         if (item(type_col_num) == "3") {
@@ -199,7 +188,7 @@ class myDemo {
     features
   }
 
-  def get_label_set(initialData: RDD[Array[String]], date: String) = {
+  def get_label_set(initialData: RDD[Array[String]], date: String): Set[String] = {
     initialData.filter(p => stringTime.in_same_day(p(5), date)).filter(p => p(2) == "4").map(p => p(0) + "," + p(1)).collect().toSet
   }
 
@@ -288,6 +277,26 @@ class myDemo {
     // boostingStrategy.treeStrategy.setCategoricalFeaturesInfo(Map[Int, Int]())
     GradientBoostedTrees.train(true_training_data, boostingStrategy)
     // new LogisticRegressionWithLBFGS().setNumClasses(2).run(true_training_data)
+  }
+
+  //input: feature_vector:("userid,itemid",features)
+  //output: ("userid,itemid",0/1)
+  def use_model_to_predict(model: GradientBoostedTreesModel, feature_vector: RDD[(String, Array[String])]) = {
+    feature_vector.map(line => {
+      (line._1, model.predict(Vectors.dense(line._2.map(_.toDouble))))
+    })
+
+  }
+
+  //input:pred_value=("userid,item_id",0/1)
+  def calculate_precision_recall_f1(pred_value: RDD[(String, Double)], label_set: Set[String]) = {
+    val pred_positive = pred_value.filter(_._2 == 1)
+    val true_positive_num = pred_positive.filter(line => label_set.contains(line._1)).count()
+    val precision = true_positive_num.toDouble / pred_positive.count()
+    val recall = true_positive_num.toDouble / label_set.size
+    val f1 = 2 * precision * recall / (precision + recall)
+    (precision, recall, f1)
+
   }
 }
 
