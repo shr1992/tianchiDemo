@@ -46,8 +46,8 @@ class myDemo {
     //("1/0",features)
     val training_data: RDD[(String, Array[String])] = add_label_to_feature_vector(initialData, train_feature_vector, label_day)
     //sample
-    val training_data_p = training_data.filter(_._1 == "1").sample(false, 0.98)
-    val training_data_n = training_data.filter(_._1 == "0").sample(false, 0.005)
+    val training_data_p = training_data.filter(_._1 == "1")
+    val training_data_n = training_data.filter(_._1 == "0").sample(false, 0.01)
     val training_sample: RDD[(String, Array[String])] = training_data_p.union(training_data_n)
     //change to labeledPoint
     val true_training_data: RDD[LabeledPoint] = training_sample.map(line => {
@@ -271,9 +271,9 @@ class myDemo {
 
   def training_model(true_training_data: RDD[LabeledPoint]) = {
     val boostingStrategy: BoostingStrategy = BoostingStrategy.defaultParams("Classification")
-    boostingStrategy.setNumIterations(20)
+    boostingStrategy.setNumIterations(50)
     boostingStrategy.treeStrategy.setNumClasses(2)
-    boostingStrategy.treeStrategy.setMaxDepth(6)
+    boostingStrategy.treeStrategy.setMaxDepth(10)
     // boostingStrategy.treeStrategy.setCategoricalFeaturesInfo(Map[Int, Int]())
     GradientBoostedTrees.train(true_training_data, boostingStrategy)
     // new LogisticRegressionWithLBFGS().setNumClasses(2).run(true_training_data)
