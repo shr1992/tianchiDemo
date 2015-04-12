@@ -58,14 +58,14 @@ class myDemo {
     val train_pred_value = use_model_to_predict(model, train_feature_vector)
     val train_label_set = get_label_set(initialData, "2014-12-17 0")
     val train_evaluation = calculate_precision_recall_f1(train_pred_value, train_label_set)
-    println("model at train_set: precision = %f , recall = %f , f1 = %f ", train_evaluation._1, train_evaluation._2, train_evaluation._3)
+    println("model at train_set: precision = %f , recall = %f , f1 = %f ".format(train_evaluation._1, train_evaluation._2, train_evaluation._3))
 
     //("userid,itemid",features)
     val test_feature_vector: RDD[(String, Array[String])] = create_feature_vector(initialData, "2014-11-19 0", "2014-12-17 24")
     val test_pred_value = use_model_to_predict(model, test_feature_vector)
     val test_label_set = get_label_set(initialData, "2014-12-18 0")
     val test_evaluation = calculate_precision_recall_f1(test_pred_value, test_label_set)
-    println("model at test_set: precision = %f , recall = %f , f1 = %f ", test_evaluation._1, test_evaluation._2, test_evaluation._3)
+    println("model at test_set: precision = %f , recall = %f , f1 = %f ".format(test_evaluation._1, test_evaluation._2, test_evaluation._3))
 
 
 
