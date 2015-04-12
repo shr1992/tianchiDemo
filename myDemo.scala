@@ -55,22 +55,26 @@ class myDemo {
     }).cache()
     val model = training_model(true_training_data)
 
+    val result_number = 4500
+
     val train_pred_value = use_model_to_predict(model, train_feature_vector)
+    val train_pred_positive = get_pred_positive(train_pred_value, result_number)
     val train_label_set = get_label_set(initialData, "2014-12-17 0")
-    val train_evaluation = calculate_precision_recall_f1(train_pred_value, train_label_set)
+    val train_evaluation = calculate_precision_recall_f1(train_pred_positive, train_label_set)
     println("model at train_set: precision = %f , recall = %f , f1 = %f ".format(train_evaluation._1, train_evaluation._2, train_evaluation._3))
 
     //("userid,itemid",features)
     val test_feature_vector: RDD[(String, Array[String])] = create_feature_vector(initialData, "2014-11-19 0", "2014-12-17 24")
     val test_pred_value = use_model_to_predict(model, test_feature_vector)
+    val test_pred_positive = get_pred_positive(test_pred_value, result_number)
     val test_label_set = get_label_set(initialData, "2014-12-18 0")
-    val test_evaluation = calculate_precision_recall_f1(test_pred_value, test_label_set)
+    val test_evaluation = calculate_precision_recall_f1(test_pred_positive, test_label_set)
     println("model at test_set: precision = %f , recall = %f , f1 = %f ".format(test_evaluation._1, test_evaluation._2, test_evaluation._3))
 
 
 
     val real_feature_vector = create_feature_vector(initialData, "2014-11-20 0", "2014-12-18 24")
-    val real_pred: Array[String] = use_model_to_predict(model, real_feature_vector).filter(_._2 == 1).map(_._1).distinct().collect()
+    val real_pred = get_pred_positive(use_model_to_predict(model, real_feature_vector), result_number).map(_._1)
 
     println(real_pred.length)
 
@@ -118,9 +122,9 @@ class myDemo {
             click_12h += 1
           if (time_dis <= 24)
             click_24h += 1
-          if (time_dis <= 24 * 3)
+          if (time_dis <= 72)
             click_3d += 1
-          if (time_dis <= 24 * 7)
+          if (time_dis <= 168)
             click_7d += 1
           if (stringTime.distance(item(time_col_num), first_click) <= 0)
             first_click = item(time_col_num)
@@ -149,9 +153,9 @@ class myDemo {
             cart_12h += 1
           if (time_dis <= 24)
             cart_24h += 1
-          if (time_dis <= 24 * 3)
+          if (time_dis <= 72)
             cart_3d += 1
-          if (time_dis <= 24 * 7)
+          if (time_dis <= 168)
             cart_7d += 1
         }
         if (item(type_col_num) == "4") {
@@ -162,9 +166,9 @@ class myDemo {
             buy_12h += 1
           if (time_dis <= 24)
             buy_24h += 1
-          if (time_dis <= 24 * 3)
+          if (time_dis <= 72)
             buy_3d += 1
-          if (time_dis <= 24 * 7)
+          if (time_dis <= 168)
             buy_7d += 1
           if (stringTime.distance(item(time_col_num), first_buy) <= 0)
             first_buy = item(time_col_num)
@@ -270,17 +274,17 @@ class myDemo {
   }
 
   def training_model(true_training_data: RDD[LabeledPoint]) = {
-    val boostingStrategy: BoostingStrategy = BoostingStrategy.defaultParams("Classification")
-    boostingStrategy.setNumIterations(50)
+    val boostingStrategy: BoostingStrategy = BoostingStrategy.defaultParams("Regression")
+    boostingStrategy.setNumIterations(30)
     boostingStrategy.treeStrategy.setNumClasses(2)
-    boostingStrategy.treeStrategy.setMaxDepth(10)
+    boostingStrategy.treeStrategy.setMaxDepth(7)
     // boostingStrategy.treeStrategy.setCategoricalFeaturesInfo(Map[Int, Int]())
     GradientBoostedTrees.train(true_training_data, boostingStrategy)
     // new LogisticRegressionWithLBFGS().setNumClasses(2).run(true_training_data)
   }
 
   //input: feature_vector:("userid,itemid",features)
-  //output: ("userid,itemid",0/1)
+  //output: ("userid,itemid",double)
   def use_model_to_predict(model: GradientBoostedTreesModel, feature_vector: RDD[(String, Array[String])]) = {
     feature_vector.map(line => {
       (line._1, model.predict(Vectors.dense(line._2.map(_.toDouble))))
@@ -288,15 +292,18 @@ class myDemo {
 
   }
 
-  //input:pred_value=("userid,item_id",0/1)
-  def calculate_precision_recall_f1(pred_value: RDD[(String, Double)], label_set: Set[String]) = {
-    val pred_positive = pred_value.filter(_._2 == 1)
-    val true_positive_num = pred_positive.filter(line => label_set.contains(line._1)).count()
-    val precision = true_positive_num.toDouble / pred_positive.count()
+  def get_pred_positive(pred_value: RDD[(String, Double)], result_mumber: Int): Array[(String, Double)] = {
+    pred_value.top(result_mumber)(Ordering.by(_._2))
+    // val pred_positive = pred_value.filter(_._2 == 1)
+  }
+
+  //input:pred_value=("userid,item_id",double)
+  def calculate_precision_recall_f1(pred_positive: Array[(String, Double)], label_set: Set[String]) = {
+    val true_positive_num = pred_positive.filter(line => label_set.contains(line._1)).length
+    val precision = true_positive_num.toDouble / pred_positive.length
     val recall = true_positive_num.toDouble / label_set.size
     val f1 = 2 * precision * recall / (precision + recall)
     (precision, recall, f1)
-
   }
 }
 
